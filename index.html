@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta name='robots' content='noindex,nofollow' />
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity WebGL Player | qgame</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link rel="stylesheet" href="TemplateData/style.css">
+  </head>
+  <body>
+    <div id="unity-container" class="unity-desktop">
+      <canvas id="unity-canvas" width=960 height=600></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+      <div id="unity-warning"> </div>
+      <div id="unity-footer">
+        <div id="unity-webgl-logo"></div>
+        <div id="unity-fullscreen-button"></div>
+        <div id="unity-build-title">qgame</div>
+      </div>
+    </div>
+    <script type="text/javascript" src="https://unpkg.com/anchor-link@3"></script>
+    <script type="text/javascript" src="https://unpkg.com/anchor-link-browser-transport@3"></script>
+    <script src="/wax.js"></script>
+    <script>
+var username;
+var debug_tables;
+var config_tables;
+var GAME_ACCOUNT_NAME = "banana11fund";
+
+
+var GameDefines = 
+  {
+      MINE_SLOTS_COUNT : 5,
+      CRAFT_SLOTS_COUNT : 5,
+      GAME_RESOURCES_COUNT : 4,
+      CRAFT_TIME : 180,
+      WITHDRAWAL_FEE : 8,
+  }
+
+const wax = new waxjs.WaxJS({
+  rpcEndpoint: 'https://waxtestnet.greymass.com'
+});
+
+function AnchorLoginHandle(){
+  initialize_server();
+};
+
+async function initialize_server() {
+  identifier = 'play';
+  transport = new AnchorLinkBrowserTransport();
+  link = new AnchorLink({
+      transport,
+      chains: [
+          {
+              chainId: 'f16b1833c747c43682f4386fca9cbb327929334a762755ebec17f6f23c9b8a12',
+              nodeUrl: 'https://waxtestnet.greymass.com',
+          }
+      ],
+  });
+
+  AnchorLogin();
+};
+
+async function AnchorLogin() {
+try{
+  window.unityInstance.SendMessage('Core', 'HandleTransactionAwait', 'Please confirm the transaction in your wallet');
+
+  await link.login(identifier).then((result) => {
+    session = result.session
+  });
+
+  username = session.auth.actor.toString();
+
+  config_tables = await GetConfigTables();
+  debug_tables = await GetTables();
+
+  window.unityInstance.SendMessage('Core', 'HandleTransactionSuccess', 'true');
+
+} catch(e) {
+  window.unityInstance.SendMessage('Core', 'HandleTransactionError', 'true');
+}
+
+}
+
+async function MineHandle(message){
+  window.unityInstance.SendMessage('Core', 'HandleTransactionAwait', 'Please confirm the transaction in your wallet');
+
+  console.log(message);
+  //alert(message);
+
+  var json = JSON.parse(message);
+
+
+  try{
+    const action = {
+      account: GAME_ACCOUNT_NAME,
+      name: 'mine',
+      authorization: [session.auth],
+      data: {
+        username : username,
+        asset_id : json.asset_id,
+        nonce_code : '69940b12932d8b99d4f721bd9e07da885d6e3ad9f7eafeb874305323715431eb',
+        period : json.period
+      }
+    }
+    await session.transact({ action }).then(async (result) => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    });
+
+    window.unityInstance.SendMessage('Core', 'HandleTransactionSuccess', 'true');
+    await GetTables();
+    
+  } catch (e) {
+    console.log(e.message);
+    window.unityInstance.SendMessage('Core', 'HandleTransactionError', 'true');
+    await GetTables();
+  }
+}
+
+async function ClaimHandle(message){
+  window.unityInstance.SendMessage('Core', 'HandleTransactionAwait', 'Please confirm the transaction in your wallet');
+
+  console.log(message);
+  //alert(message);
+
+  var json = JSON.parse(message);
+  try{
+    const action = {
+      account: GAME_ACCOUNT_NAME,
+      name: 'claim',
+      authorization: [session.auth],
+      data: {
+        username : username,
+        asset_id : json.asset_id
+      }
+    }
+
+    await session.transact({ action }).then(async (result) => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    });
+
+    window.unityInstance.SendMessage('Core', 'HandleTransactionSuccess', 'true');
+    await GetTables();
+    
+  } catch (e) {
+    console.log(e.message);
+    window.unityInstance.SendMessage('Core', 'HandleTransactionError', 'true');
+    await GetTables();
+  }
+}
+async function GetConfigTables(){
+  var tables = {};
+  tables.confmine = await GetConfTable("confmine", 100);
+  tables.confcraft = await GetConfTable("confcraft", 100);
+  tables.confblend = await GetConfTable("confblend", 100);
+  tables.confxp = await GetConfTable("confxp", 100);
+  tables.confperiod = await GetConfTable("confperiod", 100);
+
+  tables.raw_confmine = JSON.stringify(tables.confmine);
+  tables.raw_confcraft = JSON.stringify(tables.confcraft);
+  tables.raw_confblend = JSON.stringify(tables.confblend);
+  tables.raw_confxp = JSON.stringify(tables.confxp);
+  tables.raw_confperiod = JSON.stringify(tables.confperiod);
+
+  window.unityInstance.SendMessage('Core', 'ReceiveConfmine', tables.raw_confmine);
+  window.unityInstance.SendMessage('Core', 'ReceiveConfcraft', tables.raw_confcraft);
+  window.unityInstance.SendMessage('Core', 'ReceiveConfblend', tables.raw_confblend);
+  window.unityInstance.SendMessage('Core', 'ReceiveConfxp', tables.raw_confxp);
+  window.unityInstance.SendMessage('Core', 'ReceiveConfperiod', tables.raw_confperiod);
+
+  return tables;
+
+}
+
+async function GetTables(){
+  window.unityInstance.SendMessage('Core', 'HandleTransactionAwait', 'Loading game data');
+  
+  var tables = {};
+  try{
+  tables.username = username;
+
+
+  
+  tables.userstatus = await GetUserstatus();
+  tables.userassets = await GetUserAssets();
+
+
+
+  //tables.minestatus = await GetStatusTable("minestatus", 5, username);
+  tables.craftstatus = await GetStatusTable("craftstatus", 5, username);
+  
+  tables.minestatus = await GetStatusTable("minestatus", 1, 1099529422952);
+  tables.xpstatus = await GetStatusTable("xpstatus", 1, 1099529422952);
+  tables.burnstatus = await GetStatusTable("burnstatus", 1, 1099529422952);
+  tables.minestatus.rows = [];
+  tables.xpstatus.rows = [];
+  tables.burnstatus.rows = [];
+
+  for(var i=0; i < tables.userassets.rows.length; i++){
+
+      var x = await GetStatusTable("xpstatus", 1, tables.userassets.rows[i].asset_id);
+      if(x.rows.length>0){
+        if(x.rows[0].asset_id == tables.userassets.rows[i].asset_id){
+          tables.xpstatus.rows.push(x.rows[0]);
+        }
+      }
+      var b = await GetStatusTable("burnstatus", 1, tables.userassets.rows[i].asset_id);
+      if(b.rows.length>0){
+        if(b.rows[0].asset_id == tables.userassets.rows[i].asset_id){
+          tables.burnstatus.rows.push(b.rows[0]);
+        }
+      }
+      var m = await GetStatusTable("minestatus", 1, tables.userassets.rows[i].asset_id);
+      if(m.rows.length>0){
+        if(m.rows[0].asset_id == tables.userassets.rows[i].asset_id){
+          tables.minestatus.rows.push(m.rows[0]);
+        }
+      }
+  }
+  
+
+
+  tables.raw_userstatus = JSON.stringify(tables.userstatus);
+  tables.raw_userassets = JSON.stringify(tables.userassets);
+
+  tables.raw_minestatus = JSON.stringify(tables.minestatus);
+  tables.raw_craftstatus = JSON.stringify(tables.craftstatus);
+  tables.raw_xpstatus = JSON.stringify(tables.xpstatus);
+  tables.raw_burnstatus = JSON.stringify(tables.burnstatus);
+
+  window.unityInstance.SendMessage('Core', 'ReceiveUsername', username);
+  window.unityInstance.SendMessage('Core', 'ReceiveUserstatus', tables.raw_userstatus);
+  window.unityInstance.SendMessage('Core', 'ReceiveUserassets', tables.raw_userassets);        
+
+  window.unityInstance.SendMessage('Core', 'ReceiveMinestatus', tables.raw_minestatus);
+  window.unityInstance.SendMessage('Core', 'ReceiveCraftstatus', tables.raw_craftstatus);
+
+  window.unityInstance.SendMessage('Core', 'ReceiveXpstatus', tables.raw_xpstatus);
+  window.unityInstance.SendMessage('Core', 'ReceiveBurnstatus', tables.raw_burnstatus);
+
+
+  window.unityInstance.SendMessage('Core', 'ProcessData');
+
+  window.unityInstance.SendMessage('Core', 'HandleTransactionSuccess', 'ok');
+  
+}catch(e){
+  window.unityInstance.SendMessage('Core', 'HandleTransactionError', 'an error');
+}
+
+  return tables;
+
+}
+
+async function GetConfTable(table, limit){
+  const result = await wax.rpc.get_table_rows({
+      json: true,               // Get the response as json
+      code: GAME_ACCOUNT_NAME,      // Contract that we target
+      scope: GAME_ACCOUNT_NAME,         // Account that owns the data
+      table: table,        // Table name
+      limit: limit,                // Maximum number of rows that we want to get
+      reverse: false,           // Optional: Get reversed data
+      show_payer: false          // Optional: Show ram payer
+  });
+
+  return result;
+}
+async function GetUserstatus(){
+  const result = await wax.rpc.get_table_rows({
+      json: true,               // Get the response as json
+      code: GAME_ACCOUNT_NAME,      // Contract that we target
+      scope: GAME_ACCOUNT_NAME,         // Account that owns the data
+      table: 'userstatus',        // Table name
+      lower_bound: username,
+      limit: 1,                // Maximum number of rows that we want to get
+      reverse: false,           // Optional: Get reversed data
+      show_payer: false          // Optional: Show ram payer
+  });
+
+  return result;
+}
+
+
+async function GetUserAssets(){
+  const result = await wax.rpc.get_table_rows({
+      json: true,               // Get the response as json
+      code: 'atomicassets',      // Contract that we target
+      scope: username,         // Account that owns the data
+      table: 'assets',        // Table name
+      limit: 100,                // Maximum number of rows that we want to get
+      reverse: false,           // Optional: Get reversed data
+      show_payer: false          // Optional: Show ram payer
+  });
+
+  return result;
+}
+
+async function GetStatusTable(table, limit, lower_bound){
+  const result = await wax.rpc.get_table_rows({
+      json: true,               // Get the response as json
+      code: GAME_ACCOUNT_NAME,      // Contract that we target
+      scope: GAME_ACCOUNT_NAME,         // Account that owns the data
+      table: table,        // Table name
+      lower_bound: lower_bound,
+      limit: limit,                // Maximum number of rows that we want to get
+      reverse: false,           // Optional: Get reversed data
+      show_payer: false          // Optional: Show ram payer
+  });
+
+  return result;
+}
+
+var container = document.querySelector("#unity-container");
+var canvas = document.querySelector("#unity-canvas");
+var loadingBar = document.querySelector("#unity-loading-bar");
+var progressBarFull = document.querySelector("#unity-progress-bar-full");
+var fullscreenButton = document.querySelector("#unity-fullscreen-button");
+var warningBanner = document.querySelector("#unity-warning");
+
+// Shows a temporary message banner/ribbon for a few seconds, or
+// a permanent error message on top of the canvas if type=='error'.
+// If type=='warning', a yellow highlight color is used.
+// Modify or remove this function to customize the visually presented
+// way that non-critical warnings and error messages are presented to the
+// user.
+function unityShowBanner(msg, type) {
+  function updateBannerVisibility() {
+    warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+  }
+  var div = document.createElement('div');
+  div.innerHTML = msg;
+  warningBanner.appendChild(div);
+  if (type == 'error') div.style = 'background: red; padding: 10px;';
+  else {
+    if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+    setTimeout(function() {
+      warningBanner.removeChild(div);
+      updateBannerVisibility();
+    }, 5000);
+  }
+  updateBannerVisibility();
+}
+
+var buildUrl = "Build";
+var loaderUrl = buildUrl + "/CurrentBuild.loader.js";
+var config = {
+  dataUrl: buildUrl + "/CurrentBuild.data",
+  frameworkUrl: buildUrl + "/CurrentBuild.framework.js",
+  codeUrl: buildUrl + "/CurrentBuild.wasm",
+  streamingAssetsUrl: "StreamingAssets",
+  companyName: "DefaultCompany",
+  productName: "qgame",
+  productVersion: "0.1",
+  showBanner: unityShowBanner,
+};
+
+// By default Unity keeps WebGL canvas render target size matched with
+// the DOM size of the canvas element (scaled by window.devicePixelRatio)
+// Set this to false if you want to decouple this synchronization from
+// happening inside the engine, and you would instead like to size up
+// the canvas DOM size and WebGL render target sizes yourself.
+// config.matchWebGLToCanvasSize = false;
+
+if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+  container.className = "unity-mobile";
+  // Avoid draining fillrate performance on mobile devices,
+  // and default/override low DPI mode on mobile browsers.
+  config.devicePixelRatio = 1;
+  unityShowBanner('WebGL builds are not supported on mobile devices.');
+} else {
+  canvas.style.width = "960px";
+  canvas.style.height = "600px";
+}
+loadingBar.style.display = "block";
+
+var script = document.createElement("script");
+script.src = loaderUrl;
+script.onload = () => {
+  createUnityInstance(canvas, config, (progress) => {
+    progressBarFull.style.width = 100 * progress + "%";
+  }).then((unityInstance) => {
+    window.unityInstance = unityInstance;
+    loadingBar.style.display = "none";
+    fullscreenButton.onclick = () => {
+      unityInstance.SetFullscreen(1);
+    };
+  }).catch((message) => {
+    alert(message);
+  });
+};
+document.body.appendChild(script);
+    </script>
+  </body>
+</html>
