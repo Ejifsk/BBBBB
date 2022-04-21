@@ -88,6 +88,51 @@ try{
 
 }
 
+async function WithdrawHandle(message){
+  console.log(message);
+
+  var message_array = message.split(', ');
+
+  try{
+    
+    for(const m of message_array){
+      await WithdrawSingle(m);
+    }
+
+    window.unityInstance.SendMessage('Core', 'HandleTransactionSuccess', 'true');
+    await GetTables();
+    
+  }catch (e){
+
+    window.unityInstance.SendMessage('Core', 'HandleTransactionError', 'true');
+    await GetTables();
+  }
+
+}
+
+async function WithdrawSingle(message){
+  console.log(message);
+
+  window.unityInstance.SendMessage('Core', 'HandleTransactionAwait', 'Please confirm transactions in your wallet');
+
+  const action = {
+    account: GAME_ACCOUNT_NAME,
+    name: 'withd',
+    authorization: [session.auth],
+    data: {
+      username : username,
+      resource : message,
+      amount : message
+    }
+  }
+
+  await session.transact({ action }).then(async (result) => {
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  });
+
+  window.unityInstance.SendMessage('Core', 'HandleTransactionSuccess', 'true');
+}
+
 async function MineHandle(message){
   window.unityInstance.SendMessage('Core', 'HandleTransactionAwait', 'Please confirm the transaction in your wallet');
 
